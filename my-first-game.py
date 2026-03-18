@@ -1,117 +1,89 @@
 import pygame
-import random
-import math
+import sys
 
 pygame.init()
 
-WIDTH, HEIGHT = 900, 600
-screen = pygame.display.set_mode((WIDTH, HEIGHT))
-pygame.display.set_caption("Fancy Particle Playground V2")
+screen = pygame.display.set_mode((800, 600))
+pygame.display.set_caption("My First Pygame")
+
+WHITE = (0, 255, 255)
+BLUE = (0, 0, 255)
+BLACK = (0, 0, 0)
+YELLOW = (255, 255, 0)
+WHITE_CIRCLE = (255, 255, 255)
 
 clock = pygame.time.Clock()
-
-particles = []
-
-class Particle:
-    def __init__(self, x, y):
-        self.x = x
-        self.y = y
-
-        angle = random.uniform(0, math.pi * 2)
-        speed = random.uniform(2, 7)
-
-        self.vx = math.cos(angle) * speed
-        self.vy = math.sin(angle) * speed
-
-        self.life = random.randint(50, 100)
-        self.max_life = self.life
-
-        self.size = random.randint(4, 8)
-
-        # 네온 느낌 색상
-        self.color = pygame.Color(0)
-        self.color.hsva = (
-            random.randint(0, 360),  # 색상
-            80,                      # 채도
-            100,                     # 밝기
-            100
-        )
-
-    def update(self):
-        self.x += self.vx
-        self.y += self.vy
-
-        self.vy += 0.1  # 중력
-
-        # 공기 저항 느낌
-        self.vx *= 0.98
-        self.vy *= 0.98
-
-        self.life -= 1
-
-    def draw(self, surf):
-        if self.life > 0:
-            # 페이드 아웃
-            alpha = int(255 * (self.life / self.max_life))
-
-            glow_surface = pygame.Surface((self.size*4, self.size*4), pygame.SRCALPHA)
-
-            pygame.draw.circle(
-                glow_surface,
-                (*self.color[:3], alpha),
-                (self.size*2, self.size*2),
-                self.size
-            )
-
-            surf.blit(glow_surface, (self.x - self.size*2, self.y - self.size*2))
-
-    def alive(self):
-        return self.life > 0
-
-
-def draw_background(surface, t):
-    for y in range(HEIGHT):
-        c = int(50 + 40 * math.sin(y * 0.01 + t))
-        color = (20, c, 80 + c//2)
-        pygame.draw.line(surface, color, (0, y), (WIDTH, y))
-
-
 running = True
-time = 0
 
-# 잔상용 투명 레이어
-fade_surface = pygame.Surface((WIDTH, HEIGHT))
-fade_surface.set_alpha(40)
-fade_surface.fill((0, 0, 0))
+# 폰트 설정
+font = pygame.font.SysFont(None, 30)
+
+# 원 위치
+x = 400
+y = 300
+
+# 기본 속도
+speed = 5
+
+# 원 반지름
+radius = 50
+
+# 🎨 색깔 리스트
+colors = [BLUE, YELLOW, WHITE_CIRCLE]
+color_index = 0
 
 while running:
-
     for event in pygame.event.get():
         if event.type == pygame.QUIT:
             running = False
 
-    mouse = pygame.mouse.get_pos()
-    buttons = pygame.mouse.get_pressed()
+        # 🔥 F 키 누르면 색 변경
+        if event.type == pygame.KEYDOWN:
+            if event.key == pygame.K_f:
+                color_index += 1
+                if color_index >= len(colors):
+                    color_index = 0
 
-  
-    if buttons[0]:
-        for _ in range(15):
-            particles.append(Particle(mouse[0], mouse[1]))
+    # 키 입력 상태 가져오기
+    keys = pygame.key.get_pressed()
 
-    time += 0.03
+    # Shift 누르면 속도 2배
+    current_speed = speed
+    if keys[pygame.K_LSHIFT] or keys[pygame.K_RSHIFT]:
+        current_speed = speed * 2
 
-    draw_background(screen, time)
+    # WASD 이동
+    if keys[pygame.K_w]:
+        y -= current_speed
+    if keys[pygame.K_s]:
+        y += current_speed
+    if keys[pygame.K_a]:
+        x -= current_speed
+    if keys[pygame.K_d]:
+        x += current_speed
 
-    # 잔상 효과
-    screen.blit(fade_surface, (0, 0))
+    # 화면 제한
+    if x < radius:
+        x = radius
+    if x > 800 - radius:
+        x = 800 - radius
+    if y < radius:
+        y = radius
+    if y > 600 - radius:
+        y = 600 - radius
 
-    for p in particles:
-        p.update()
-        p.draw(screen)
+    screen.fill(WHITE)
 
-    particles = [p for p in particles if p.alive()]
+    # 🎨 현재 색으로 원 그리기
+    pygame.draw.circle(screen, colors[color_index], (x, y), radius)
+
+    # FPS 표시
+    fps = int(clock.get_fps())
+    fps_text = font.render(f"FPS: {fps}", True, BLACK)
+    screen.blit(fps_text, (10, 10))
 
     pygame.display.flip()
     clock.tick(60)
 
 pygame.quit()
+sys.exit()
