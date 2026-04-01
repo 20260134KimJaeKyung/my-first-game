@@ -1,170 +1,259 @@
 import pygame
 import sys
-import math
+import random
 
 pygame.init()
 
-screen = pygame.display.set_mode((800, 600))
-pygame.display.set_caption("Collision Comparison")
 
-clock = pygame.time.Clock()
-font = pygame.font.SysFont(None, 30)
+def get_korean_font(size):
+    candidates = ["malgungothic", "applegothic", "nanumgothic", "notosanscjk"]
+    for name in candidates:
+        font = pygame.font.SysFont(name, size)
+        if font.get_ascent() > 0:
+            return font
+    return pygame.font.SysFont(None, size)
 
-# 색상
+
+WIDTH, HEIGHT = 800, 600
+FPS = 60
+
 WHITE = (255, 255, 255)
-GRAY = (150, 150, 150)
-RED = (255, 0, 0)
-BLUE = (0, 0, 255)
-GREEN = (0, 255, 0)
+GRAY = (40, 40, 40)
+BLUE = (50, 120, 220)
+RED = (220, 50, 50)
+YELLOW = (240, 200, 0)
+ORANGE = (240, 140, 0)
+GREEN = (50, 200, 50)
 BLACK = (0, 0, 0)
 
-rect_size = 80
-speed = 5
-radius = rect_size // 2
+BLOCK_TYPES = [
+    {"color": RED, "score": 50},
+    {"color": ORANGE, "score": 40},
+    {"color": YELLOW, "score": 30},
+    {"color": GREEN, "score": 20},
+    {"color": BLUE, "score": 10},
+]
 
-# 플레이어
-player_rect = pygame.Rect(100, 100, rect_size, rect_size)
+screen = pygame.display.set_mode((WIDTH, HEIGHT))
+pygame.display.set_caption("Breakout")
+clock = pygame.time.Clock()
 
-# 회전 오브젝트
-center_surface = pygame.Surface((rect_size, rect_size), pygame.SRCALPHA)
-center_surface.fill(GRAY)
-center_pos = (400, 300)
+font = get_korean_font(36)
+font_small = get_korean_font(18)
+font_big = get_korean_font(100)
 
-angle = 0
-rotation_speed = 1
+LEVELS = [
+    {"rows": 3, "ball_speed": 5, "label": "Lv.1", "goal": 500},
+    {"rows": 5, "ball_speed": 6, "label": "Lv.2", "goal": 900},
+    {"rows": 7, "ball_speed": 8, "label": "Lv.3", "goal": 1400},
+]
 
-# ---------- OBB 함수 ----------
+PAD_W, PAD_H = 100, 12
+BALL_R = 8
+BLOCK_W, BLOCK_H = 72, 22
+BLOCK_COLS = 10
+BLOCK_MARGIN = 5
+BLOCK_TOP = 140
 
-def get_corners(pos, angle, size):
-    cx, cy = pos
-    w = size / 2
-    h = size / 2
 
-    rad = math.radians(angle)
-    cos_a = math.cos(rad)
-    sin_a = math.sin(rad)
+def make_blocks(rows):
+    blocks = []
+    positions = []
 
-    corners = [(-w, -h), (w, -h), (w, h), (-w, h)]
+    for r in range(rows):
+        for c in range(BLOCK_COLS):
+            x = BLOCK_MARGIN + c * (BLOCK_W + BLOCK_MARGIN)
+            y = BLOCK_TOP + r * (BLOCK_H + BLOCK_MARGIN)
+            positions.append((x, y))
 
-    result = []
-    for x, y in corners:
-        rx = x * cos_a - y * sin_a + cx
-        ry = x * sin_a + y * cos_a + cy
-        result.append((rx, ry))
+    random.shuffle(positions)
 
-    return result
+    for pos in positions:
+        t = random.choice(BLOCK_TYPES)
+        rect = pygame.Rect(pos[0], pos[1], BLOCK_W, BLOCK_H)
 
-def get_axes(corners):
-    axes = []
-    for i in range(4):
-        p1 = corners[i]
-        p2 = corners[(i + 1) % 4]
+        blocks.append({
+            "rect": rect,
+            "color": t["color"],
+            "score": t["score"],
+        })
 
-        edge = (p2[0] - p1[0], p2[1] - p1[1])
-        normal = (-edge[1], edge[0])
+    return blocks
 
-        length = math.hypot(normal[0], normal[1])
-        if length != 0:
-            normal = (normal[0] / length, normal[1] / length)
 
-        axes.append(normal)
-    return axes
+def draw_hud(score, time_left, level_cfg):
+    screen.blit(font.render(f"Score: {score}", True, WHITE), (10, 10))
+    screen.blit(font.render(f"Time: {int(time_left)}", True, RED), (WIDTH - 180, 10))
 
-def project(corners, axis):
-    dots = [corner[0]*axis[0] + corner[1]*axis[1] for corner in corners]
-    return min(dots), max(dots)
+    level_text = font.render(level_cfg["label"], True, YELLOW)
+    screen.blit(level_text, (WIDTH // 2 - level_text.get_width() // 2, 10))
 
-def sat_collision(c1, c2):
-    axes = get_axes(c1) + get_axes(c2)
+    goal_text = font.render(f"GOAL {level_cfg['goal']}", True, GREEN)
+    screen.blit(goal_text, (WIDTH // 2 - goal_text.get_width() // 2, 50))
 
-    for axis in axes:
-        min1, max1 = project(c1, axis)
-        min2, max2 = project(c2, axis)
 
-        if max1 < min2 or max2 < min1:
-            return False
-    return True
-
-# -----------------------------
-
-running = True
-while running:
-    for event in pygame.event.get():
-        if event.type == pygame.QUIT:
-            running = False
-
-    keys = pygame.key.get_pressed()
-
-    # 이동
-    if keys[pygame.K_LEFT]:
-        player_rect.x -= speed
-    if keys[pygame.K_RIGHT]:
-        player_rect.x += speed
-    if keys[pygame.K_UP]:
-        player_rect.y -= speed
-    if keys[pygame.K_DOWN]:
-        player_rect.y += speed
-
-    # 회전 속도
-    if keys[pygame.K_z]:
-        rotation_speed = 3
-    else:
-        rotation_speed = 1
-
-    player_rect.clamp_ip(screen.get_rect())
-
-    angle += rotation_speed
-
-    rotated_surface = pygame.transform.rotate(center_surface, angle)
-    rotated_rect = rotated_surface.get_rect(center=center_pos)
-
-    # ---------- 충돌 계산 ----------
-
-    # 1️⃣ AABB
-    aabb_hit = player_rect.colliderect(rotated_rect)
-
-    # 2️⃣ Circle
-    dx = player_rect.centerx - rotated_rect.centerx
-    dy = player_rect.centery - rotated_rect.centery
-    circle_hit = (dx*dx + dy*dy) < (radius*2)**2
-
-    # 3️⃣ OBB (SAT)
-    player_corners = get_corners(player_rect.center, 0, rect_size)
-    center_corners = get_corners(center_pos, angle, rect_size)
-    obb_hit = sat_collision(player_corners, center_corners)
-
-    # 배경
-    screen.fill(WHITE)
-
-    # ---------- 그리기 ----------
-
-    # 사각형
-    pygame.draw.rect(screen, GRAY, player_rect)
-    screen.blit(rotated_surface, rotated_rect)
-
-    # AABB (빨강)
-    pygame.draw.rect(screen, RED, player_rect, 2)
-    pygame.draw.rect(screen, RED, rotated_rect, 2)
-
-    # Circle (파랑)
-    pygame.draw.circle(screen, BLUE, player_rect.center, radius, 2)
-    pygame.draw.circle(screen, BLUE, rotated_rect.center, radius, 2)
-
-    # OBB (초록)
-    pygame.draw.polygon(screen, GREEN, player_corners, 2)
-    pygame.draw.polygon(screen, GREEN, center_corners, 2)
-
-    # ---------- 텍스트 ----------
-
-    screen.blit(font.render(f"Circle: {'HIT' if circle_hit else 'MISS'}", True, BLACK), (10, 10))
-    screen.blit(font.render(f"AABB: {'HIT' if aabb_hit else 'MISS'}", True, BLACK), (10, 40))
-    screen.blit(font.render(f"OBB: {'HIT' if obb_hit else 'MISS'}", True, BLACK), (10, 70))
-
-    fps = int(clock.get_fps())
-    screen.blit(font.render(f"FPS: {fps}", True, BLACK), (10, 100))
-
+def message_screen(title, color, score):
+    screen.fill(GRAY)
+    screen.blit(font_big.render(title, True, color), (WIDTH // 2 - 200, 220))
+    screen.blit(font.render(f"Score: {score}", True, WHITE), (350, 330))
+    screen.blit(font.render("R: Restart   Q: Quit", True, WHITE), (270, 380))
     pygame.display.flip()
-    clock.tick(60)
 
-pygame.quit()
-sys.exit()
+    while True:
+        for e in pygame.event.get():
+            if e.type == pygame.QUIT:
+                pygame.quit()
+                sys.exit()
+            if e.type == pygame.KEYDOWN:
+                if e.key == pygame.K_r:
+                    return True
+                if e.key == pygame.K_q:
+                    pygame.quit()
+                    sys.exit()
+
+
+def main():
+    level_idx = 0
+    level_cfg = LEVELS[level_idx]
+
+    pad = pygame.Rect(WIDTH // 2 - PAD_W // 2, HEIGHT - 40, PAD_W, PAD_H)
+
+    ball = pygame.Rect(0, 0, BALL_R * 2, BALL_R * 2)
+    ball.center = (pad.centerx, pad.top - BALL_R - 2)
+
+    bx, by = level_cfg["ball_speed"], -level_cfg["ball_speed"]
+    blocks = make_blocks(level_cfg["rows"])
+
+    score = 0
+    time_left = 60
+    launched = False
+    respawn_timer = 0
+
+    while True:
+        dt = clock.tick(FPS) / 1000
+
+        for e in pygame.event.get():
+            if e.type == pygame.QUIT:
+                pygame.quit()
+                sys.exit()
+            if e.type == pygame.KEYDOWN and e.key == pygame.K_SPACE:
+                if respawn_timer <= 0:
+                    launched = True
+
+        keys = pygame.key.get_pressed()
+        if keys[pygame.K_LEFT] and pad.left > 0:
+            pad.x -= 7
+        if keys[pygame.K_RIGHT] and pad.right < WIDTH:
+            pad.x += 7
+
+        # 🎯 목표 달성 → 다음 레벨
+        if score >= level_cfg["goal"]:
+            level_idx += 1
+            if level_idx >= len(LEVELS):
+                if message_screen("CLEAR!", YELLOW, score):
+                    main()
+                return
+
+            level_cfg = LEVELS[level_idx]
+            blocks = make_blocks(level_cfg["rows"])
+            score = 0
+            time_left = 60
+            launched = False
+            ball.center = (pad.centerx, pad.top - BALL_R - 2)
+            bx, by = level_cfg["ball_speed"], -level_cfg["ball_speed"]
+
+        # ⏱ 시간 감소
+        if launched:
+            time_left -= dt
+            if time_left <= 0:
+                if message_screen("FAILED!", RED, score):
+                    main()
+                return
+
+        # ⏳ 리스폰 연출
+        if respawn_timer > 0:
+            respawn_timer -= dt
+            ball.centerx = pad.centerx
+
+            screen.fill(GRAY)
+            for b in blocks:
+                pygame.draw.rect(screen, b["color"], b["rect"])
+                text = font_small.render(str(b["score"]), True, WHITE)
+                screen.blit(text, (b["rect"].centerx - 10, b["rect"].centery - 10))
+
+            pygame.draw.rect(screen, WHITE, pad)
+            pygame.draw.ellipse(screen, WHITE, ball)
+
+            draw_hud(score, time_left, level_cfg)
+
+            overlay = pygame.Surface((WIDTH, HEIGHT))
+            overlay.set_alpha(150)
+            overlay.fill(BLACK)
+            screen.blit(overlay, (0, 0))
+
+            count = str(int(respawn_timer) + 1)
+            txt = font_big.render(count, True, WHITE)
+            screen.blit(
+                txt,
+                (WIDTH // 2 - txt.get_width() // 2,
+                 HEIGHT // 2 - txt.get_height() // 2)
+            )
+
+            pygame.display.flip()
+            continue
+
+        if not launched:
+            ball.centerx = pad.centerx
+        else:
+            ball.x += bx
+            ball.y += by
+
+            if ball.left <= 0 or ball.right >= WIDTH:
+                bx = -bx
+            if ball.top <= 0:
+                by = -by
+
+            if ball.colliderect(pad) and by > 0:
+                offset = (ball.centerx - pad.centerx) / (PAD_W / 2)
+                bx = int(offset * level_cfg["ball_speed"]) or bx
+                by = -abs(by)
+
+            hit_block = None
+            for b in blocks:
+                if ball.colliderect(b["rect"]):
+                    hit_block = b
+                    break
+
+            if hit_block:
+                score += hit_block["score"]
+                blocks.remove(hit_block)
+                by = -by
+
+            if ball.bottom >= HEIGHT:
+                launched = False
+                respawn_timer = 3
+                ball.center = (pad.centerx, pad.top - BALL_R - 2)
+
+        # 🎨 렌더링
+        screen.fill(GRAY)
+
+        for b in blocks:
+            pygame.draw.rect(screen, b["color"], b["rect"])
+            text = font_small.render(str(b["score"]), True, WHITE)
+            screen.blit(
+                text,
+                (
+                    b["rect"].centerx - text.get_width() // 2,
+                    b["rect"].centery - text.get_height() // 2
+                )
+            )
+
+        pygame.draw.rect(screen, WHITE, pad)
+        pygame.draw.ellipse(screen, WHITE, ball)
+
+        draw_hud(score, time_left, level_cfg)
+
+        pygame.display.flip()
+
+
+main()
