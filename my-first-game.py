@@ -27,11 +27,11 @@ GREEN = (50, 200, 50)
 BLACK = (0, 0, 0)
 
 BLOCK_TYPES = [
-    {"color": RED, "score": 50},
-    {"color": ORANGE, "score": 40},
-    {"color": YELLOW, "score": 30},
-    {"color": GREEN, "score": 20},
-    {"color": BLUE, "score": 10},
+    {"color": RED, "score": 50, "image": "assets/images/brick_05.png", "broken_image": "assets/images/brick_broken05.png", "threshold": 30},
+    {"color": ORANGE, "score": 40, "image": "assets/images/brick_04.png", "broken_image": "assets/images/brick_broken04.png", "threshold": 30},
+    {"color": YELLOW, "score": 30, "image": "assets/images/brick_03.png", "broken_image": "assets/images/brick_broken03.png", "threshold": 20},
+    {"color": GREEN, "score": 20, "image": "assets/images/brick_02.png", "broken_image": "assets/images/brick_broken02.png", "threshold": 10},
+    {"color": BLUE, "score": 10, "image": "assets/images/brick_01.png", "broken_image": "assets/images/brick_broken01.png", "threshold": 5},
 ]
 
 screen = pygame.display.set_mode((WIDTH, HEIGHT))
@@ -50,10 +50,33 @@ LEVELS = [
 
 PAD_W, PAD_H = 100, 12
 BALL_R = 8
-BLOCK_W, BLOCK_H = 72, 22
+BLOCK_W, BLOCK_H = 72, 22  # 블록의 크기
 BLOCK_COLS = 10
 BLOCK_MARGIN = 5
 BLOCK_TOP = 140
+BALL_DAMAGE = 10  # 공의 데미지
+
+
+# 패들 이미지 추가
+PADDLE_IMAGE = pygame.image.load("assets/images/paddle_image.png").convert_alpha()  # 패들 이미지 로드
+PADDLE_IMAGE = pygame.transform.scale(PADDLE_IMAGE, (PAD_W, PAD_H))  # 패들 크기 맞추기
+
+# 공 이미지 추가
+BALL_IMAGE = pygame.image.load("assets/images/ball_image.png").convert_alpha()  # 공 이미지 로드
+BALL_IMAGE = pygame.transform.scale(BALL_IMAGE, (BALL_R * 2, BALL_R * 2))  # 공 크기 맞추기
+
+# 별 아이템 클래스 추가
+class Star:
+    def __init__(self, x, y, score):
+        self.x = x
+        self.y = y
+        self.score = score
+        self.image = pygame.image.load("assets/images/star.png").convert_alpha()  # 별 이미지 로드
+        self.image = pygame.transform.scale(self.image, (30, 30))  # 별 크기 조정
+        self.rect = self.image.get_rect(center=(x, y))
+    
+    def draw(self):
+        screen.blit(self.image, self.rect)  # 별 그리기
 
 
 def make_blocks(rows):
@@ -72,10 +95,17 @@ def make_blocks(rows):
         t = random.choice(BLOCK_TYPES)
         rect = pygame.Rect(pos[0], pos[1], BLOCK_W, BLOCK_H)
 
+        # 블록의 색상과 이미지 설정
+        block_image = pygame.image.load(t["image"]).convert()
+        block_image = pygame.transform.scale(block_image, (BLOCK_W, BLOCK_H))  # 이미지 크기 맞추기
+
         blocks.append({
             "rect": rect,
-            "color": t["color"],
-            "score": t["score"],
+            "image": block_image,  # 블록 이미지
+            "score": t["score"],  # 블록의 점수
+            "broken_image": t["broken_image"],  # 깨진 이미지
+            "threshold": t["threshold"],  # 점수 감소 임계값
+            "initial_score": t["score"],  # 초기 점수를 저장하여 깨지는지 확인
         })
 
     return blocks
@@ -129,6 +159,8 @@ def main():
     launched = False
     respawn_timer = 0
 
+    stars = []  # 별 아이템 리스트 추가
+
     while True:
         dt = clock.tick(FPS) / 1000
 
@@ -177,12 +209,16 @@ def main():
 
             screen.fill(GRAY)
             for b in blocks:
-                pygame.draw.rect(screen, b["color"], b["rect"])
+                screen.blit(b["image"], b["rect"])  # 블록 이미지 그리기
                 text = font_small.render(str(b["score"]), True, WHITE)
                 screen.blit(text, (b["rect"].centerx - 10, b["rect"].centery - 10))
 
-            pygame.draw.rect(screen, WHITE, pad)
-            pygame.draw.ellipse(screen, WHITE, ball)
+            screen.blit(PADDLE_IMAGE, pad)  # 패들 이미지 그리기
+            screen.blit(BALL_IMAGE, ball)  # 공 이미지 그리기
+
+            # 별 아이템 그리기
+            for star in stars:
+                star.draw()
 
             draw_hud(score, time_left, level_cfg)
 
@@ -225,9 +261,26 @@ def main():
                     break
 
             if hit_block:
-                score += hit_block["score"]
-                blocks.remove(hit_block)
+                # 공이 블록에 부딪혔을 때 점수 감소
+                hit_block["score"] -= BALL_DAMAGE
+                if hit_block["score"] <= hit_block["threshold"]:  # 점수가 임계값 이하로 떨어지면 깨진 이미지로 변경
+                    hit_block["image"] = pygame.image.load(hit_block["broken_image"]).convert()
+                    hit_block["image"] = pygame.transform.scale(hit_block["image"], (BLOCK_W, BLOCK_H))
+
+                # 별 아이템 생성
+                if hit_block["score"] <= 0:  # 블록이 파괴되었을 때
+                    score += hit_block["initial_score"]  # 블록 점수 추가
+                    blocks.remove(hit_block)  # 블록 제거
+                    # 별 아이템 생성
+                    stars.append(Star(hit_block["rect"].centerx, hit_block["rect"].centery, hit_block["initial_score"]))
+                
                 by = -by
+
+            # 별 아이템과 공 충돌 확인
+            for star in stars:
+                if ball.colliderect(star.rect):  # 공이 별을 맞혔을 때
+                    score += star.score  # 별의 점수 추가
+                    stars.remove(star)  # 별 제거
 
             if ball.bottom >= HEIGHT:
                 launched = False
@@ -238,7 +291,7 @@ def main():
         screen.fill(GRAY)
 
         for b in blocks:
-            pygame.draw.rect(screen, b["color"], b["rect"])
+            screen.blit(b["image"], b["rect"])  # 블록 이미지 그리기
             text = font_small.render(str(b["score"]), True, WHITE)
             screen.blit(
                 text,
@@ -248,8 +301,12 @@ def main():
                 )
             )
 
-        pygame.draw.rect(screen, WHITE, pad)
-        pygame.draw.ellipse(screen, WHITE, ball)
+        screen.blit(PADDLE_IMAGE, pad)  # 패들 이미지 그리기
+        screen.blit(BALL_IMAGE, ball)  # 공 이미지 그리기
+
+        # 별 아이템 그리기
+        for star in stars:
+            star.draw()
 
         draw_hud(score, time_left, level_cfg)
 
