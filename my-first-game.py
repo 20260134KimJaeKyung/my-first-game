@@ -94,10 +94,21 @@ BLUE = (50, 120, 220)
 BLACK = (0, 0, 0)
 CYAN = (60, 220, 220)
 PURPLE = (180, 80, 220)
-DARK_RED = (120, 20, 20)
-DARK_PURPLE = (70, 25, 95)
+
 HP_BG = (15, 15, 15)
 HP_BORDER = (255, 255, 255)
+
+HUD_BG = (18, 18, 26)
+HUD_PANEL = (28, 28, 38)
+HUD_BORDER = (220, 220, 220)
+SHADOW = (0, 0, 0)
+
+UPGRADE_NAME_COLORS = {
+    "pierce": (100, 220, 255),
+    "explosion": (255, 150, 80),
+    "shield": (120, 255, 140),
+    "time_stop": (235, 120, 255),
+}
 
 BLOCK_SCORE = 100
 
@@ -118,13 +129,18 @@ font_small = get_korean_font(18)
 font_big = get_korean_font(70)
 font_mid = get_korean_font(22)
 font_hp = get_korean_font(16)
+font_upgrade_title = get_korean_font(16)
+font_upgrade_value = get_korean_font(17)
+font_upgrade_hint = get_korean_font(13)
 
 BASE_PAD_W, PAD_H = 120, 12
 BALL_R = 8
 BLOCK_W, BLOCK_H = 72, 22
 BLOCK_COLS = 10
 BLOCK_MARGIN = 5
-BLOCK_TOP = 70
+
+TOP_HUD_HEIGHT = 105
+BLOCK_TOP = TOP_HUD_HEIGHT + 12
 
 DESCEND_STEP = BLOCK_H + BLOCK_MARGIN
 BASE_DESCEND_INTERVAL = 5.5
@@ -151,10 +167,10 @@ UPGRADE_TEXT = {
 }
 
 UPGRADE_DESC = {
-    "pierce": "공이 블럭을 뚫고 지나감",
-    "explosion": "주변 블럭도 같이 타격",
+    "pierce": "패들 반사 후 제한 관통",
+    "explosion": "주변 블럭 폭발 데미지",
     "shield": "데인저 라인 1회 방어",
-    "time_stop": "F키로 하강 일시정지",
+    "time_stop": "F키로 하강 정지",
 }
 
 UPGRADE_MAX_LEVEL = {
@@ -252,6 +268,12 @@ def get_xp_reward(destroyed_count):
     return destroyed_count * XP_PER_BLOCK
 
 
+def draw_shadow_text(text_surf, x, y, shadow_offset=1):
+    shadow = text_surf.copy()
+    screen.blit(shadow, (x + shadow_offset, y + shadow_offset))
+    screen.blit(text_surf, (x, y))
+
+
 def draw_xp_bar(xp, xp_to_next, level):
     bar_x = 170
     bar_y = HEIGHT - 28
@@ -268,32 +290,68 @@ def draw_xp_bar(xp, xp_to_next, level):
     fill_w = int(bar_w * fill_ratio)
     pygame.draw.rect(screen, CYAN, (bar_x, bar_y, fill_w, bar_h), border_radius=8)
 
+    level_shadow = font_small.render(f"Lv {level}", True, BLACK)
     level_text = font_small.render(f"Lv {level}", True, WHITE)
+    xp_shadow = font_small.render(f"XP {xp}/{xp_to_next}", True, BLACK)
     xp_text = font_small.render(f"XP {xp}/{xp_to_next}", True, WHITE)
 
+    screen.blit(level_shadow, (96, HEIGHT - 31))
     screen.blit(level_text, (95, HEIGHT - 32))
+    screen.blit(xp_shadow, (WIDTH - 179, HEIGHT - 31))
     screen.blit(xp_text, (WIDTH - 180, HEIGHT - 32))
 
 
 def draw_upgrade_levels(upgrade_levels, shield_count, stop_charges):
-    lines = [
-        f"관통탄 {upgrade_levels['pierce']}/{UPGRADE_MAX_LEVEL['pierce']}",
-        f"폭발탄 {upgrade_levels['explosion']}/{UPGRADE_MAX_LEVEL['explosion']}",
-        f"보호막 {shield_count}",
-        f"시간정지 {stop_charges}개 (F)",
+    hud_rect = pygame.Rect(0, 42, WIDTH, TOP_HUD_HEIGHT - 42)
+    pygame.draw.rect(screen, HUD_BG, hud_rect)
+
+    card_margin_x = 10
+    card_gap = 8
+    card_w = (WIDTH - card_margin_x * 2 - card_gap * 3) // 4
+    card_h = 46
+    card_y = 52
+
+    cards = [
+        ("pierce", f"Lv {upgrade_levels['pierce']}/{UPGRADE_MAX_LEVEL['pierce']}", UPGRADE_DESC["pierce"]),
+        ("explosion", f"Lv {upgrade_levels['explosion']}/{UPGRADE_MAX_LEVEL['explosion']}", UPGRADE_DESC["explosion"]),
+        ("shield", f"{shield_count}개", UPGRADE_DESC["shield"]),
+        ("time_stop", f"{stop_charges}개", "F키 사용"),
     ]
 
-    y = 40
-    for line in lines:
-        shadow = font_small.render(line, True, BLACK)
-        txt = font_small.render(line, True, WHITE)
-        screen.blit(shadow, (11, y + 1))
-        screen.blit(txt, (10, y))
-        y += 20
+    for i, (key, value, desc) in enumerate(cards):
+        x = card_margin_x + i * (card_w + card_gap)
+        rect = pygame.Rect(x, card_y, card_w, card_h)
+
+        pygame.draw.rect(screen, HUD_PANEL, rect, border_radius=10)
+        pygame.draw.rect(screen, HUD_BORDER, rect, 2, border_radius=10)
+
+        name_color = UPGRADE_NAME_COLORS[key]
+
+        name_shadow = font_upgrade_title.render(UPGRADE_TEXT[key], True, SHADOW)
+        name_text = font_upgrade_title.render(UPGRADE_TEXT[key], True, name_color)
+
+        value_shadow = font_upgrade_value.render(value, True, SHADOW)
+        value_text = font_upgrade_value.render(value, True, WHITE)
+
+        desc_shadow = font_upgrade_hint.render(desc, True, SHADOW)
+        desc_text = font_upgrade_hint.render(desc, True, (190, 190, 190))
+
+        screen.blit(name_shadow, (x + 10, card_y + 7))
+        screen.blit(name_text, (x + 9, card_y + 6))
+
+        value_x = x + card_w - value_text.get_width() - 10
+        screen.blit(value_shadow, (value_x + 1, card_y + 7))
+        screen.blit(value_text, (value_x, card_y + 6))
+
+        screen.blit(desc_shadow, (x + 10, card_y + 28))
+        screen.blit(desc_text, (x + 9, card_y + 27))
 
 
 def draw_hud(score, survive_time, descend_interval, xp, xp_to_next, level,
              freeze_timer, upgrade_levels, shield_count, stop_charges):
+    top_bar = pygame.Rect(0, 0, WIDTH, 42)
+    pygame.draw.rect(screen, HUD_BG, top_bar)
+
     score_shadow = font.render(f"Score: {score}", True, BLACK)
     score_text = font.render(f"Score: {score}", True, WHITE)
     time_shadow = font.render(f"Time: {int(survive_time)}", True, BLACK)
@@ -305,14 +363,17 @@ def draw_hud(score, survive_time, descend_interval, xp, xp_to_next, level,
     screen.blit(time_text, (WIDTH - 135, 10))
 
     if freeze_timer > 0:
-        speed_text = font_small.render(f"Drop: STOP {freeze_timer:.1f}s", True, CYAN)
         speed_shadow = font_small.render(f"Drop: STOP {freeze_timer:.1f}s", True, BLACK)
+        speed_text = font_small.render(f"Drop: STOP {freeze_timer:.1f}s", True, CYAN)
     else:
-        speed_text = font_small.render(f"Drop: {descend_interval:.1f}s", True, GREEN)
         speed_shadow = font_small.render(f"Drop: {descend_interval:.1f}s", True, BLACK)
+        speed_text = font_small.render(f"Drop: {descend_interval:.1f}s", True, GREEN)
 
-    screen.blit(speed_shadow, (WIDTH // 2 - speed_text.get_width() // 2 + 1, 15))
-    screen.blit(speed_text, (WIDTH // 2 - speed_text.get_width() // 2, 14))
+    center_x = WIDTH // 2 - speed_text.get_width() // 2
+    screen.blit(speed_shadow, (center_x + 1, 15))
+    screen.blit(speed_text, (center_x, 14))
+
+    draw_upgrade_levels(upgrade_levels, shield_count, stop_charges)
 
     danger_shadow = font_small.render("DANGER LINE", True, BLACK)
     danger_text = font_small.render("DANGER LINE", True, RED)
@@ -320,13 +381,12 @@ def draw_hud(score, survive_time, descend_interval, xp, xp_to_next, level,
     screen.blit(danger_text, (10, DANGER_LINE_Y - 24))
     pygame.draw.line(screen, RED, (0, DANGER_LINE_Y), (WIDTH, DANGER_LINE_Y), 2)
 
-    draw_upgrade_levels(upgrade_levels, shield_count, stop_charges)
     draw_xp_bar(xp, xp_to_next, level)
 
 
 def draw_levelup_overlay(level, choices, upgrade_levels):
     overlay = pygame.Surface((WIDTH, HEIGHT))
-    overlay.set_alpha(200)
+    overlay.set_alpha(210)
     overlay.fill(BLACK)
     screen.blit(overlay, (0, 0))
 
@@ -464,7 +524,16 @@ def apply_upgrade(choice, state):
 def get_explosion_radius(level):
     if level <= 0:
         return 0
-    return 45 + (level - 1) * 22
+    return 35 + (level - 1) * 15
+
+
+def get_pierce_charges(level):
+    if level <= 1:
+        return 0
+    elif level <= 3:
+        return 1
+    else:
+        return 2
 
 
 def destroy_blocks(blocks, target_block, explosion_level):
@@ -506,6 +575,13 @@ def destroy_blocks(blocks, target_block, explosion_level):
             blocks.remove(b)
 
     return destroyed_blocks, destroyed_rects
+
+
+def clamp_nonzero_speed(value, fallback):
+    iv = int(value)
+    if iv == 0:
+        return fallback
+    return iv
 
 
 def main():
@@ -591,7 +667,7 @@ def main():
                 if e.key == pygame.K_SPACE:
                     if not launched and respawn_timer <= 0:
                         launched = True
-                        pierce_hits_left = upgrade_levels["pierce"]
+                        pierce_hits_left = get_pierce_charges(upgrade_levels["pierce"])
 
                 if e.key == pygame.K_f:
                     if stop_charges > 0 and freeze_timer <= 0 and not level_up:
@@ -630,7 +706,7 @@ def main():
                 launched = True
                 bx = random.choice([-ball_speed, ball_speed])
                 by = -ball_speed
-                pierce_hits_left = upgrade_levels["pierce"]
+                pierce_hits_left = get_pierce_charges(upgrade_levels["pierce"])
 
             ball.center = (pad.centerx, pad.top - BALL_R - 2)
 
@@ -714,7 +790,7 @@ def main():
                     bx = -ball_speed
 
                 by = -abs(ball_speed)
-                pierce_hits_left = upgrade_levels["pierce"]
+                pierce_hits_left = get_pierce_charges(upgrade_levels["pierce"])
 
             hit_block = None
             for b in blocks:
@@ -726,7 +802,13 @@ def main():
                 if hit_sound is not None:
                     hit_sound.play()
 
-                destroyed_blocks, _ = destroy_blocks(blocks, hit_block, upgrade_levels["explosion"])
+                explosion_level = upgrade_levels["explosion"]
+
+                # 관통 중에는 폭발 비활성화
+                if pierce_hits_left > 0:
+                    explosion_level = 0
+
+                destroyed_blocks, _ = destroy_blocks(blocks, hit_block, explosion_level)
 
                 gained_score = sum(b["score"] for b in destroyed_blocks)
                 destroyed_count = len(destroyed_blocks)
@@ -744,6 +826,8 @@ def main():
 
                 if pierce_hits_left > 0:
                     pierce_hits_left -= 1
+                    bx = clamp_nonzero_speed(bx * 0.9, 1 if bx >= 0 else -1)
+                    by = clamp_nonzero_speed(by * 0.9, -1 if by < 0 else 1)
                 else:
                     by = -by
 
