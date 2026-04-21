@@ -101,7 +101,6 @@ HP_BORDER = (255, 255, 255)
 HUD_BG = (18, 18, 26)
 HUD_PANEL = (28, 28, 38)
 HUD_BORDER = (220, 220, 220)
-SHADOW = (0, 0, 0)
 
 UPGRADE_NAME_COLORS = {
     "pierce": (100, 220, 255),
@@ -132,6 +131,14 @@ font_hp = get_korean_font(16)
 font_upgrade_title = get_korean_font(16)
 font_upgrade_value = get_korean_font(17)
 font_upgrade_hint = get_korean_font(13)
+
+font_levelup_title = get_korean_font(58)
+font_levelup_guide = get_korean_font(22)
+font_levelup_card_num = get_korean_font(48)
+font_levelup_name = get_korean_font(24)
+font_levelup_desc = get_korean_font(17)
+font_levelup_lv = get_korean_font(18)
+font_levelup_current = get_korean_font(18)
 
 BASE_PAD_W, PAD_H = 120, 12
 BALL_R = 8
@@ -268,10 +275,43 @@ def get_xp_reward(destroyed_count):
     return destroyed_count * XP_PER_BLOCK
 
 
-def draw_shadow_text(text_surf, x, y, shadow_offset=1):
-    shadow = text_surf.copy()
+def draw_text_with_shadow(text, font_obj, color, x, y, shadow_color=BLACK, shadow_offset=1):
+    shadow = font_obj.render(text, True, shadow_color)
+    main = font_obj.render(text, True, color)
     screen.blit(shadow, (x + shadow_offset, y + shadow_offset))
-    screen.blit(text_surf, (x, y))
+    screen.blit(main, (x, y))
+
+
+def wrap_text(text, font_obj, max_width):
+    words = text.split()
+    lines = []
+    current = ""
+
+    for word in words:
+        test = word if current == "" else current + " " + word
+        if font_obj.size(test)[0] <= max_width:
+            current = test
+        else:
+            if current:
+                lines.append(current)
+            current = word
+
+    if current:
+        lines.append(current)
+
+    return lines
+
+
+def draw_centered_multiline(text_lines, font_obj, color, center_x, start_y, line_gap=3, shadow=True):
+    y = start_y
+    for line in text_lines:
+        surf = font_obj.render(line, True, color)
+        x = center_x - surf.get_width() // 2
+        if shadow:
+            draw_text_with_shadow(line, font_obj, color, x, y, BLACK, 1)
+        else:
+            screen.blit(surf, (x, y))
+        y += surf.get_height() + line_gap
 
 
 def draw_xp_bar(xp, xp_to_next, level):
@@ -290,15 +330,8 @@ def draw_xp_bar(xp, xp_to_next, level):
     fill_w = int(bar_w * fill_ratio)
     pygame.draw.rect(screen, CYAN, (bar_x, bar_y, fill_w, bar_h), border_radius=8)
 
-    level_shadow = font_small.render(f"Lv {level}", True, BLACK)
-    level_text = font_small.render(f"Lv {level}", True, WHITE)
-    xp_shadow = font_small.render(f"XP {xp}/{xp_to_next}", True, BLACK)
-    xp_text = font_small.render(f"XP {xp}/{xp_to_next}", True, WHITE)
-
-    screen.blit(level_shadow, (96, HEIGHT - 31))
-    screen.blit(level_text, (95, HEIGHT - 32))
-    screen.blit(xp_shadow, (WIDTH - 179, HEIGHT - 31))
-    screen.blit(xp_text, (WIDTH - 180, HEIGHT - 32))
+    draw_text_with_shadow(f"Lv {level}", font_small, WHITE, 95, HEIGHT - 32)
+    draw_text_with_shadow(f"XP {xp}/{xp_to_next}", font_small, WHITE, WIDTH - 180, HEIGHT - 32)
 
 
 def draw_upgrade_levels(upgrade_levels, shield_count, stop_charges):
@@ -327,24 +360,10 @@ def draw_upgrade_levels(upgrade_levels, shield_count, stop_charges):
 
         name_color = UPGRADE_NAME_COLORS[key]
 
-        name_shadow = font_upgrade_title.render(UPGRADE_TEXT[key], True, SHADOW)
-        name_text = font_upgrade_title.render(UPGRADE_TEXT[key], True, name_color)
-
-        value_shadow = font_upgrade_value.render(value, True, SHADOW)
-        value_text = font_upgrade_value.render(value, True, WHITE)
-
-        desc_shadow = font_upgrade_hint.render(desc, True, SHADOW)
-        desc_text = font_upgrade_hint.render(desc, True, (190, 190, 190))
-
-        screen.blit(name_shadow, (x + 10, card_y + 7))
-        screen.blit(name_text, (x + 9, card_y + 6))
-
-        value_x = x + card_w - value_text.get_width() - 10
-        screen.blit(value_shadow, (value_x + 1, card_y + 7))
-        screen.blit(value_text, (value_x, card_y + 6))
-
-        screen.blit(desc_shadow, (x + 10, card_y + 28))
-        screen.blit(desc_text, (x + 9, card_y + 27))
+        draw_text_with_shadow(UPGRADE_TEXT[key], font_upgrade_title, name_color, x + 9, card_y + 6)
+        value_x = x + card_w - font_upgrade_value.size(value)[0] - 10
+        draw_text_with_shadow(value, font_upgrade_value, WHITE, value_x, card_y + 6)
+        draw_text_with_shadow(desc, font_upgrade_hint, (190, 190, 190), x + 9, card_y + 27)
 
 
 def draw_hud(score, survive_time, descend_interval, xp, xp_to_next, level,
@@ -352,33 +371,22 @@ def draw_hud(score, survive_time, descend_interval, xp, xp_to_next, level,
     top_bar = pygame.Rect(0, 0, WIDTH, 42)
     pygame.draw.rect(screen, HUD_BG, top_bar)
 
-    score_shadow = font.render(f"Score: {score}", True, BLACK)
-    score_text = font.render(f"Score: {score}", True, WHITE)
-    time_shadow = font.render(f"Time: {int(survive_time)}", True, BLACK)
-    time_text = font.render(f"Time: {int(survive_time)}", True, YELLOW)
-
-    screen.blit(score_shadow, (11, 11))
-    screen.blit(score_text, (10, 10))
-    screen.blit(time_shadow, (WIDTH - 134, 11))
-    screen.blit(time_text, (WIDTH - 135, 10))
+    draw_text_with_shadow(f"Score: {score}", font, WHITE, 10, 10)
+    draw_text_with_shadow(f"Time: {int(survive_time)}", font, YELLOW, WIDTH - 135, 10)
 
     if freeze_timer > 0:
-        speed_shadow = font_small.render(f"Drop: STOP {freeze_timer:.1f}s", True, BLACK)
-        speed_text = font_small.render(f"Drop: STOP {freeze_timer:.1f}s", True, CYAN)
+        speed_text = f"Drop: STOP {freeze_timer:.1f}s"
+        speed_color = CYAN
     else:
-        speed_shadow = font_small.render(f"Drop: {descend_interval:.1f}s", True, BLACK)
-        speed_text = font_small.render(f"Drop: {descend_interval:.1f}s", True, GREEN)
+        speed_text = f"Drop: {descend_interval:.1f}s"
+        speed_color = GREEN
 
-    center_x = WIDTH // 2 - speed_text.get_width() // 2
-    screen.blit(speed_shadow, (center_x + 1, 15))
-    screen.blit(speed_text, (center_x, 14))
+    center_x = WIDTH // 2 - font_small.size(speed_text)[0] // 2
+    draw_text_with_shadow(speed_text, font_small, speed_color, center_x, 14)
 
     draw_upgrade_levels(upgrade_levels, shield_count, stop_charges)
 
-    danger_shadow = font_small.render("DANGER LINE", True, BLACK)
-    danger_text = font_small.render("DANGER LINE", True, RED)
-    screen.blit(danger_shadow, (11, DANGER_LINE_Y - 23))
-    screen.blit(danger_text, (10, DANGER_LINE_Y - 24))
+    draw_text_with_shadow("DANGER LINE", font_small, RED, 10, DANGER_LINE_Y - 24)
     pygame.draw.line(screen, RED, (0, DANGER_LINE_Y), (WIDTH, DANGER_LINE_Y), 2)
 
     draw_xp_bar(xp, xp_to_next, level)
@@ -386,51 +394,66 @@ def draw_hud(score, survive_time, descend_interval, xp, xp_to_next, level,
 
 def draw_levelup_overlay(level, choices, upgrade_levels):
     overlay = pygame.Surface((WIDTH, HEIGHT))
-    overlay.set_alpha(210)
+    overlay.set_alpha(215)
     overlay.fill(BLACK)
     screen.blit(overlay, (0, 0))
 
-    title = font_big.render("LEVEL UP!", True, YELLOW)
-    guide = font_mid.render("1 / 2 / 3 키로 업그레이드를 선택하세요", True, WHITE)
+    title_text = "LEVEL UP!"
+    guide_text = "1 / 2 / 3 키로 업그레이드를 선택하세요"
+    current_text = f"현재 레벨: {level}"
 
-    screen.blit(title, (WIDTH // 2 - title.get_width() // 2, 65))
-    screen.blit(guide, (WIDTH // 2 - guide.get_width() // 2, 132))
+    title_x = WIDTH // 2 - font_levelup_title.size(title_text)[0] // 2
+    guide_x = WIDTH // 2 - font_levelup_guide.size(guide_text)[0] // 2
+    current_x = WIDTH // 2 - font_levelup_current.size(current_text)[0] // 2
 
-    lv_text = font_small.render(f"현재 레벨: {level}", True, WHITE)
-    screen.blit(lv_text, (WIDTH // 2 - lv_text.get_width() // 2, 182))
+    draw_text_with_shadow(title_text, font_levelup_title, YELLOW, title_x, 40, BLACK, 2)
+    draw_text_with_shadow(guide_text, font_levelup_guide, WHITE, guide_x, 108, BLACK, 1)
+    draw_text_with_shadow(current_text, font_levelup_current, WHITE, current_x, 140, BLACK, 1)
 
     if not choices:
-        done_txt = font_mid.render("모든 업그레이드가 최대 레벨입니다", True, WHITE)
-        screen.blit(done_txt, (WIDTH // 2 - done_txt.get_width() // 2, 300))
+        done_txt = "모든 업그레이드가 최대 레벨입니다"
+        done_x = WIDTH // 2 - font_mid.size(done_txt)[0] // 2
+        draw_text_with_shadow(done_txt, font_mid, WHITE, done_x, 300)
         return
 
-    card_w = 210
-    card_h = 200
-    gap = 25
+    card_w = 220
+    card_h = 250
+    gap = 20
     total_w = card_w * len(choices) + gap * (len(choices) - 1)
     start_x = WIDTH // 2 - total_w // 2
-    y = 215
+    y = 195
 
-    card_colors = [GREEN, CYAN, PURPLE]
+    card_colors = [
+        (55, 165, 95),
+        (55, 145, 180),
+        (130, 75, 170),
+    ]
 
     for i, choice in enumerate(choices):
         x = start_x + i * (card_w + gap)
         rect = pygame.Rect(x, y, card_w, card_h)
-        pygame.draw.rect(screen, card_colors[i % len(card_colors)], rect, border_radius=16)
-        pygame.draw.rect(screen, WHITE, rect, 3, border_radius=16)
 
-        number_txt = font_big.render(str(i + 1), True, WHITE)
-        name_txt = font_mid.render(UPGRADE_TEXT[choice], True, BLACK)
+        pygame.draw.rect(screen, card_colors[i % len(card_colors)], rect, border_radius=18)
+        pygame.draw.rect(screen, WHITE, rect, 3, border_radius=18)
+
+        center_x = rect.centerx
+
+        number = str(i + 1)
+        number_x = center_x - font_levelup_card_num.size(number)[0] // 2
+        draw_text_with_shadow(number, font_levelup_card_num, WHITE, number_x, rect.y + 12, BLACK, 2)
+
+        name = UPGRADE_TEXT[choice]
+        name_x = center_x - font_levelup_name.size(name)[0] // 2
+        draw_text_with_shadow(name, font_levelup_name, WHITE, name_x, rect.y + 78, BLACK, 1)
+
+        desc_lines = wrap_text(UPGRADE_DESC[choice], font_levelup_desc, card_w - 24)
+        draw_centered_multiline(desc_lines, font_levelup_desc, BLACK, center_x, rect.y + 118, line_gap=3, shadow=False)
 
         now_lv = upgrade_levels[choice]
         max_lv = UPGRADE_MAX_LEVEL[choice]
-        lv_upgrade_txt = font_small.render(f"Lv {now_lv} -> {now_lv + 1} / {max_lv}", True, BLACK)
-        desc_txt = font_small.render(UPGRADE_DESC[choice], True, BLACK)
-
-        screen.blit(number_txt, (rect.centerx - number_txt.get_width() // 2, rect.y + 8))
-        screen.blit(name_txt, (rect.centerx - name_txt.get_width() // 2, rect.y + 104))
-        screen.blit(desc_txt, (rect.centerx - desc_txt.get_width() // 2, rect.y + 136))
-        screen.blit(lv_upgrade_txt, (rect.centerx - lv_upgrade_txt.get_width() // 2, rect.y + 166))
+        lv_text = f"Lv {now_lv} -> {now_lv + 1} / {max_lv}"
+        lv_x = center_x - font_levelup_lv.size(lv_text)[0] // 2
+        draw_text_with_shadow(lv_text, font_levelup_lv, BLACK, lv_x, rect.y + card_h - 38, WHITE, 1)
 
 
 def get_hp_text_color(hp):
@@ -804,7 +827,6 @@ def main():
 
                 explosion_level = upgrade_levels["explosion"]
 
-                # 관통 중에는 폭발 비활성화
                 if pierce_hits_left > 0:
                     explosion_level = 0
 
