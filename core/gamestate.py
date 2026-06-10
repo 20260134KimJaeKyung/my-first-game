@@ -1,3 +1,4 @@
+
 from enum import Enum
 
 
@@ -5,3 +6,4 @@ class GameState(Enum):
 
     MENU = 0
     PLAYING = 1
+    LEVEL_UP = 2

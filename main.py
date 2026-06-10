@@ -1,3 +1,4 @@
+
 import pygame
 import sys
 
@@ -36,6 +37,33 @@ while True:
                     state = GameState.PLAYING
 
         elif state == GameState.PLAYING:
+
+            if game.level_up_active:
+
+                if event.type == pygame.KEYDOWN:
+
+                    if event.key == pygame.K_1:
+                        game.apply_upgrade(
+                            game.upgrade_choices[0]
+                        )
+
+                    elif event.key == pygame.K_2:
+                        game.apply_upgrade(
+                            game.upgrade_choices[1]
+                        )
+
+                    elif event.key == pygame.K_3:
+                        game.apply_upgrade(
+                            game.upgrade_choices[2]
+                        )
+
+            if game.game_over:
+
+                if event.type == pygame.KEYDOWN:
+
+                    if event.key == pygame.K_r:
+
+                        game = Game()
 
             if event.type == pygame.KEYDOWN:
 
@@ -84,3 +112,4 @@ while True:
 
     pygame.display.flip()
     clock.tick(60)
+
