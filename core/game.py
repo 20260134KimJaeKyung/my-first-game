@@ -1,9 +1,8 @@
-
 import pygame
 import random
 
 from entities.player import Player
-from entities.enemy import Enemy
+from entities.enemy  import Enemy
 from entities.bullet import Bullet
 from entities.xp_orb import XPOrb
 
@@ -11,8 +10,6 @@ from entities.xp_orb import XPOrb
 class Game:
 
     def __init__(self):
-
-        self.background_color = (25, 25, 35)
 
         self.player = Player()
 
@@ -43,8 +40,37 @@ class Game:
         self.upgrade_choices = []
 
         self.game_over = False
-        self.level_up_active = False
-        self.upgrade_choices = []
+
+        # 타일 로드
+        self.tiles = []
+
+        for i in range(1, 7):
+
+            tile = pygame.image.load(
+                f"assets/images/tiles/tile{i}.png"
+            ).convert_alpha()
+
+            tile = pygame.transform.scale(
+                tile,
+                (64, 64)
+            )
+
+            self.tiles.append(tile)
+
+        # 맵 생성
+        self.map_data = []
+
+        for row in range(12):
+
+            row_data = []
+
+            for col in range(20):
+
+                row_data.append(
+                    random.randint(0, 5)
+                )
+
+            self.map_data.append(row_data)
 
     def generate_upgrades(self):
 
@@ -54,7 +80,10 @@ class Game:
             "Heal 30 HP"
         ]
 
-        self.upgrade_choices = random.sample(pool, 3)
+        self.upgrade_choices = random.sample(
+            pool,
+            3
+        )
 
     def apply_upgrade(self, choice):
 
@@ -140,8 +169,6 @@ class Game:
                 self.player.direction_y
             )
 
-            bullet.size += self.bullet_size_bonus
-
             self.bullets.append(
                 bullet
             )
@@ -153,7 +180,8 @@ class Game:
             orb.update(self.player)
 
             if orb.rect.colliderect(
-                    self.player.rect):
+                self.player.rect
+            ):
 
                 self.xp += orb.value
 
@@ -181,6 +209,7 @@ class Game:
                 or bullet.rect.y < -100
                 or bullet.rect.y > 900
             ):
+
                 self.bullets.remove(bullet)
 
         for enemy in self.enemies[:]:
@@ -188,19 +217,23 @@ class Game:
             enemy.update(self.player)
 
             if enemy.rect.colliderect(
-                    self.player.rect):
+                self.player.rect
+            ):
 
                 self.hp -= 0.2
 
             for bullet in self.bullets[:]:
 
                 if bullet.rect.colliderect(
-                        enemy.rect):
+                    enemy.rect
+                ):
 
                     enemy.hp -= 1
 
                     if bullet in self.bullets:
-                        self.bullets.remove(bullet)
+                        self.bullets.remove(
+                            bullet
+                        )
 
                     if enemy.hp <= 0:
 
@@ -211,7 +244,9 @@ class Game:
                             )
                         )
 
-                        self.enemies.remove(enemy)
+                        self.enemies.remove(
+                            enemy
+                        )
 
                     break
 
@@ -222,7 +257,24 @@ class Game:
 
     def draw(self, screen):
 
-        screen.fill(self.background_color)
+        # 타일맵
+        for row in range(
+            len(self.map_data)
+        ):
+
+            for col in range(
+                len(self.map_data[row])
+            ):
+
+                tile_index = self.map_data[row][col]
+
+                screen.blit(
+                    self.tiles[tile_index],
+                    (
+                        col * 64,
+                        row * 64
+                    )
+                )
 
         self.player.draw(screen)
 
@@ -235,34 +287,28 @@ class Game:
         for orb in self.xp_orbs:
             orb.draw(screen)
 
-        level_text = self.font.render(
-            f"LV {self.level}",
-            True,
-            (255, 255, 0)
+        screen.blit(
+            self.font.render(
+                f"LV {self.level}",
+                True,
+                (255, 255, 0)
+            ),
+            (20, 20)
         )
 
-        wave_text = self.font.render(
-            f"Wave {self.wave}",
-            True,
-            (255, 255, 255)
+        screen.blit(
+            self.font.render(
+                f"Wave {self.wave}",
+                True,
+                (255, 255, 255)
+            ),
+            (20, 60)
         )
-
-        time_text = self.font.render(
-            f"Time {int(self.survival_time)}",
-            True,
-            (255, 255, 255)
-        )
-
-        screen.blit(level_text, (20, 20))
-        screen.blit(wave_text, (20, 60))
-        screen.blit(time_text, (20, 100))
-
-        # HP BAR
 
         pygame.draw.rect(
             screen,
             (70, 70, 70),
-            (20, 150, 300, 24)
+            (20, 100, 300, 24)
         )
 
         pygame.draw.rect(
@@ -270,89 +316,10 @@ class Game:
             (50, 220, 80),
             (
                 20,
-                150,
-                300 * (self.hp / self.max_hp),
+                100,
+                300 * (
+                    self.hp / self.max_hp
+                ),
                 24
             )
         )
-
-        if self.level_up_active:
-
-            pygame.draw.rect(
-                screen,
-                (20, 20, 20),
-                (250, 150, 780, 400)
-            )
-
-            title = self.big_font.render(
-                "LEVEL UP",
-                True,
-                (255, 255, 0)
-            )
-
-            screen.blit(
-                title,
-                (
-                    640 - title.get_width() // 2,
-                    180
-                )
-            )
-
-            for i, choice in enumerate(
-                    self.upgrade_choices):
-
-                text = self.font.render(
-                    f"{i+1}. {choice}",
-                    True,
-                    (255, 255, 255)
-                )
-
-                screen.blit(
-                    text,
-                    (
-                        320,
-                        280 + i * 80
-                    )
-                )
-
-        if self.game_over:
-
-            overlay = pygame.Surface(
-                (1280, 720)
-            )
-
-            overlay.set_alpha(180)
-            overlay.fill((0, 0, 0))
-
-            screen.blit(
-                overlay,
-                (0, 0)
-            )
-
-            title = self.big_font.render(
-                "GAME OVER",
-                True,
-                (255, 60, 60)
-            )
-
-            screen.blit(
-                title,
-                (
-                    640 - title.get_width() // 2,
-                    250
-                )
-            )
-
-            restart = self.font.render(
-                "Press R To Restart",
-                True,
-                (255, 255, 255)
-            )
-
-            screen.blit(
-                restart,
-                (
-                    640 - restart.get_width() // 2,
-                    340
-                )
-            )
