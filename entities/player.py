@@ -43,6 +43,8 @@ class Player:
 
         self.is_moving = False
 
+        self.hurt_timer = 0
+
     def load_sheet(self, path):
 
         sheet = pygame.image.load(
@@ -152,13 +154,20 @@ class Player:
 
             self.animation_timer = 0
 
+        if self.hurt_timer > 0:
+            self.hurt_timer -= 1
+
+    def hit(self):
+        # 적과 닿았을 때 잠깐 붉게 번쩍이도록 한다.
+        self.hurt_timer = 5
+
     def draw(self, screen):
 
         image = self.current_frames[
             self.frame_index
         ]
 
-        # 좌우 반전
+        # 좌우 반전 (조준 방향 기준)
 
         if self.direction_x < 0:
 
@@ -166,6 +175,13 @@ class Player:
                 image,
                 True,
                 False
+            )
+
+        if self.hurt_timer > 0:
+            image = image.copy()
+            image.fill(
+                (255, 80, 80, 0),
+                special_flags=pygame.BLEND_RGB_ADD,
             )
 
         screen.blit(

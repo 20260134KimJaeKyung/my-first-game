@@ -23,12 +23,12 @@ class MenuScreen:
             font
         )
 
-        self.settings_button = Button(
+        self.controls_button = Button(
             490,
             370,
             300,
             60,
-            "Settings",
+            "Controls",
             font
         )
 
@@ -46,7 +46,7 @@ class MenuScreen:
         screen.fill((20, 20, 30))
 
         title = self.title_font.render(
-            "Breakout Defense DX",
+            "CUBE SURVIVOR",
             True,
             (255, 255, 255)
         )
@@ -59,6 +59,20 @@ class MenuScreen:
             )
         )
 
+        subtitle = self.font.render(
+            "Survive the swarm",
+            True,
+            (160, 160, 180)
+        )
+
+        screen.blit(
+            subtitle,
+            (
+                width // 2 - subtitle.get_width() // 2,
+                210
+            )
+        )
+
         self.start_button.draw(screen)
-        self.settings_button.draw(screen)
+        self.controls_button.draw(screen)
         self.exit_button.draw(screen)

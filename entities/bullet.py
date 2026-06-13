@@ -4,19 +4,19 @@ import math
 
 
 class Bullet:
+    """플레이어가 발사하는 파이어볼."""
 
-    def __init__(self, x, y, dx, dy):
+    # 10장의 파이어볼 프레임을 한 번만 로드해서 공유한다.
+    _raw_frames = None
 
-        self.size = 24
+    def __init__(self, x, y, dx, dy, size=24, damage=1, speed=10):
 
-        self.rect = pygame.Rect(
-            x,
-            y,
-            self.size,
-            self.size
-        )
+        self.size = size
+        self.damage = damage
+        self.speed = speed
 
-        self.speed = 10
+        self.rect = pygame.Rect(0, 0, size, size)
+        self.rect.center = (x, y)
 
         length = math.hypot(dx, dy)
 
@@ -26,23 +26,29 @@ class Bullet:
         self.dx = dx / length
         self.dy = dy / length
 
-        self.frames = []
+        self.angle = math.degrees(math.atan2(-self.dy, self.dx))
 
-        for i in range(10):
-
-            image = pygame.image.load(
-                f"assets/images/bullets/fireball_{i}.png"
-            ).convert_alpha()
-
-            image = pygame.transform.scale(
-                image,
-                (24, 24)
-            )
-
-            self.frames.append(image)
+        self.frames = [
+            pygame.transform.scale(frame, (size, size))
+            for frame in self._load_raw_frames()
+        ]
 
         self.frame_index = 0
         self.animation_timer = 0
+
+    @classmethod
+    def _load_raw_frames(cls):
+
+        if cls._raw_frames is None:
+
+            cls._raw_frames = [
+                pygame.image.load(
+                    f"assets/images/bullets/fireball_{i}.png"
+                ).convert_alpha()
+                for i in range(10)
+            ]
+
+        return cls._raw_frames
 
     def update(self):
 
@@ -62,27 +68,14 @@ class Bullet:
 
     def draw(self, screen):
 
-        image = self.frames[
-            self.frame_index
-        ]
+        image = self.frames[self.frame_index]
 
-        angle = math.degrees(
-            math.atan2(
-                -self.dy,
-                self.dx
-            )
-        )
-
-        image = pygame.transform.rotate(
-            image,
-            angle
-        )
+        image = pygame.transform.rotate(image, self.angle)
 
         screen.blit(
             image,
             (
                 self.rect.centerx - image.get_width() // 2,
-                self.rect.centery - image.get_height() // 2
-            )
+                self.rect.centery - image.get_height() // 2,
+            ),
         )
-
